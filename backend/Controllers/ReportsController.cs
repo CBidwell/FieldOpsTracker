@@ -1,16 +1,15 @@
 ﻿using Backend.DTOs;
 using Backend.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Backend.Contollers
+namespace Backend.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
     public class ReportsController : ControllerBase
     {
-        private IReportService _service;
-        ILogger<ReportsController> _logger;
+        private readonly IReportService _service;
+        private readonly ILogger<ReportsController> _logger;
 
         public ReportsController(IReportService service, ILogger<ReportsController> logger)
         {

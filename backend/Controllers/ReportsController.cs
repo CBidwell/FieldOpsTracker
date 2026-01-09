@@ -21,8 +21,17 @@ namespace Backend.Controllers
         public async Task<ActionResult<IReadOnlyList<FieldReportDto>>> GetReportsAsync()
         {
             _logger.LogInformation("Fetching all field reports.");
-            var reports = await _service.GetReportsAsync();
-            return Ok(reports);
+
+            try
+            {
+                var reports = await _service.GetReportsAsync();
+                return Ok(reports);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Database not configured");
+                return StatusCode(503, "Database not configured in production");
+            }
         }
 
         [HttpGet("{id:guid}", Name = "GetReportById")]

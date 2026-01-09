@@ -40,3 +40,8 @@ obj/
 # =========================
 .DS_Store
 Thumbs.db
+
+# =========================
+# Private job search notes
+# =========================
+docs/job-search/

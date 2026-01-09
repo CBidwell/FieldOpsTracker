@@ -26,18 +26,8 @@ const content = `# Standup — ${today}
 
 **Blocked**
 - 
-
-## Job Search
-**Done**
-- 
-
-**Next**
-- 
-
-**Waiting On**
-- 
 `;
 
 fs.writeFileSync(standupFile, content, { encoding: "utf8" });
 
-console.log(`✅ Standup created: docs/standup/${today}.md`);
+console.log(`✅ Public standup created: docs/standup/${today}.md`);

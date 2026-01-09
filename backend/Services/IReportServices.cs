@@ -4,6 +4,8 @@ namespace Backend.Services
 {
     public interface IReportService
     {
-        IEnumerable<FieldReportDto> GetReports();
+        Task<IReadOnlyList<FieldReportDto>> GetReportsAsync();
+        Task<FieldReportDto> CreateReportAsync(CreateFieldReportDto dto);
+        Task<FieldReportDto?> GetReportByIdAsync(Guid id);
     }
 }

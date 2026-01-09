@@ -1,4 +1,7 @@
+using Backend.Data;
+using Backend.Data.Entities;
 using Backend.Services;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 var frontendOrigin = builder.Configuration["FRONTEND_ORIGIN"];
@@ -24,6 +27,9 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddDbContext<FieldOpsDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 var app = builder.Build();
 
 app.Logger.LogInformation("Backend API starting up");
@@ -38,6 +44,35 @@ if (app.Environment.IsProduction())
 {
     app.UseHttpsRedirection();
 }
+
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<FieldOpsDbContext>();
+
+    if (!db.FieldReports.Any())
+    {
+        db.FieldReports.AddRange(
+            new FieldReport
+            {
+                Id = Guid.NewGuid(),
+                SiteName = "North Pasture",
+                Summary = "Hay delivered",
+                CreatedUtc = DateTime.UtcNow
+            },
+            new FieldReport
+            {
+                Id = Guid.NewGuid(),
+                SiteName = "Barn",
+                Summary = "Fence check complete",
+                CreatedUtc = DateTime.UtcNow
+            }
+        );
+
+        db.SaveChanges();
+    }
+}
+
 
 app.UseCors();
 

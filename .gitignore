@@ -36,6 +36,12 @@ obj/
 *.csproj.user
 
 # =========================
+# App settings (production)
+# =========================
+**/appsettings.Production.json
+**/appsettings.*.Production.json
+
+# =========================
 # OS
 # =========================
 .DS_Store

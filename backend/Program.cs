@@ -4,6 +4,11 @@ using Backend.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+
+var keyVaultUri = builder.Configuration["KeyVaultUri"];
+
+
 var frontendOrigin = builder.Configuration["FRONTEND_ORIGIN"];
 var enableSwagger = builder.Configuration["ENABLE_SWAGGER"] == "true";
 

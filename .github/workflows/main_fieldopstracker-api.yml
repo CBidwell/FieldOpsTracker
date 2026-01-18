@@ -57,6 +57,8 @@ jobs:
         run: dotnet restore backend/Backend.csproj
 
       - name: Generate Migration Script
+        env:
+          ConnectionStrings__DefaultConnection: "Server=dummy;Database=dummy;User Id=dummy;Password=dummy;"
         run: |
           dotnet ef migrations script --output migration.sql --idempotent --project backend/Backend.csproj --startup-project backend/Backend.csproj
 

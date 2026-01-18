@@ -80,10 +80,10 @@ jobs:
       - name: Allow GitHub Action IP
         id: firewall
         run: |
-          ip_address=$(curl -s http://checkip.dyndns.org/ | sed 's/[a-zA-Z/<> :]//g')
+          # The grep command below extracts ONLY the numbers and dots, ignoring the newline
+          ip_address=$(curl -s http://checkip.dyndns.org/ | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")
           echo "Agent IP: $ip_address"
           
-          # UPDATE THESE IF NEEDED
           az sql server firewall-rule create \
             --resource-group rg-fieldopstracker \
             --server fieldopstracker-sql \

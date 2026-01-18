@@ -59,9 +59,12 @@ jobs:
       - name: Restore Dependencies
         run: dotnet restore backend/Backend.csproj
 
+      - name: Build Project (Explicit)
+        run: dotnet build backend/Backend.csproj --configuration Release --no-restore
+
       - name: Generate Migration Script
         run: |
-          dotnet ef migrations script --output migration.sql --idempotent --project backend/Backend.csproj --startup-project backend/Backend.csproj --configuration Release
+          dotnet ef migrations script --output migration.sql --idempotent --project backend/Backend.csproj --startup-project backend/Backend.csproj --configuration Release --no-build
 
       - name: Login to Azure
         uses: azure/login@v2

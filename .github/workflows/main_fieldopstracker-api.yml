@@ -41,6 +41,10 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    # Global Env Vars for this job
+    env:
+      ConnectionStrings__DefaultConnection: "Server=tcp:dummy;Database=dummy;User Id=dummy;Password=dummy;"
+      ASPNETCORE_ENVIRONMENT: "Production"
 
     steps:
       - uses: actions/checkout@v6
@@ -53,14 +57,18 @@ jobs:
       - name: Install EF Tool
         run: dotnet tool install --global dotnet-ef
 
+      # Step 1: Explicit Restore (Fixes "Assets file not found")
       - name: Restore Dependencies
         run: dotnet restore backend/Backend.csproj
 
+      # Step 2: Explicit Build (This will show us the REAL error if it fails)
+      - name: Build Project
+        run: dotnet build backend/Backend.csproj --no-restore --configuration Release
+
+      # Step 3: Migration (Uses the build artifacts from above)
       - name: Generate Migration Script
-        env:
-          ConnectionStrings__DefaultConnection: "Server=dummy;Database=dummy;User Id=dummy;Password=dummy;"
         run: |
-          dotnet ef migrations script --output migration.sql --idempotent --project backend/Backend.csproj --startup-project backend/Backend.csproj
+          dotnet ef migrations script --output migration.sql --idempotent --project backend/Backend.csproj --startup-project backend/Backend.csproj --no-build --configuration Release
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -70,10 +78,12 @@ jobs:
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_ED90389CFF68412394A20161D96FE727 }}
 
       - name: Allow GitHub Action IP
+        id: firewall
         run: |
           ip_address=$(curl -s http://checkip.dyndns.org/ | sed 's/[a-zA-Z/<> :]//g')
           echo "Agent IP: $ip_address"
           
+          # UPDATE THESE IF NEEDED
           az sql server firewall-rule create \
             --resource-group rg-fieldopstracker \
             --server fieldopstracker-sql \
@@ -88,12 +98,13 @@ jobs:
           path: migration.sql
 
       - name: Remove Firewall Rule
-        if: always() 
+        if: always() && steps.firewall.outcome == 'success'
         run: |
+          # UPDATE THESE IF NEEDED
           az sql server firewall-rule delete \
             --resource-group rg-fieldopstracker \
             --server fieldopstracker-sql \
-            --name GitHubAction_$GITHUB_RUN_ID 
+            --name GitHubAction_$GITHUB_RUN_ID
 
   deploy:
     runs-on: windows-latest

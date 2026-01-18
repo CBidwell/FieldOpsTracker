@@ -53,6 +53,9 @@ jobs:
       - name: Install EF Tool
         run: dotnet tool install --global dotnet-ef
 
+      - name: Restore Dependencies
+        run: dotnet restore backend/Backend.csproj
+
       - name: Generate Migration Script
         run: |
           dotnet ef migrations script --output migration.sql --idempotent --project backend/Backend.csproj --startup-project backend/Backend.csproj

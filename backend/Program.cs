@@ -1,3 +1,4 @@
+using Azure.Identity;
 using Backend.Data;
 using Backend.Data.Entities;
 using Backend.Services;
@@ -5,9 +6,14 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-
 var keyVaultUri = builder.Configuration["KeyVaultUri"];
 
+if(!string.IsNullOrEmpty(keyVaultUri))
+{
+    builder.Configuration.AddAzureKeyVault(
+        new Uri(keyVaultUri),
+        new DefaultAzureCredential());
+}
 
 var frontendOrigin = builder.Configuration["FRONTEND_ORIGIN"];
 var enableSwagger = builder.Configuration["ENABLE_SWAGGER"] == "true";
@@ -32,8 +38,13 @@ builder.Services.AddCors(options =>
     });
 });
 
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
 builder.Services.AddDbContext<FieldOpsDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(connectionString, sqlOptions =>
+    {
+        sqlOptions.EnableRetryOnFailure();
+    }));
 
 var app = builder.Build();
 
@@ -49,35 +60,6 @@ if (app.Environment.IsProduction())
 {
     app.UseHttpsRedirection();
 }
-
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<FieldOpsDbContext>();
-
-    if (!db.FieldReports.Any())
-    {
-        db.FieldReports.AddRange(
-            new FieldReport
-            {
-                Id = Guid.NewGuid(),
-                SiteName = "North Pasture",
-                Summary = "Hay delivered",
-                CreatedUtc = DateTime.UtcNow
-            },
-            new FieldReport
-            {
-                Id = Guid.NewGuid(),
-                SiteName = "Barn",
-                Summary = "Fence check complete",
-                CreatedUtc = DateTime.UtcNow
-            }
-        );
-
-        db.SaveChanges();
-    }
-}
-
 
 app.UseCors();
 

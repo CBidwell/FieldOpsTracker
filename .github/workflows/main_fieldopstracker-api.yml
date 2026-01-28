@@ -10,16 +10,17 @@ on:
   workflow_dispatch:
 
 jobs:
+  # --- JOB 1: BUILD THE APPLICATION ---
   build:
     runs-on: windows-latest
     permissions:
       contents: read
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up .NET Core
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.x'
 
@@ -30,11 +31,12 @@ jobs:
         run: dotnet publish backend/Backend.csproj -c Release -o "${{env.DOTNET_ROOT}}/myapp"
 
       - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: .net-app
           path: ${{env.DOTNET_ROOT}}/myapp
 
+  # --- JOB 2: UPDATE DATABASE ---
   update-database:
     runs-on: ubuntu-latest
     needs: build
@@ -46,10 +48,10 @@ jobs:
       ASPNETCORE_ENVIRONMENT: "Production"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.x'
 
@@ -59,21 +61,24 @@ jobs:
       - name: Restore Dependencies
         run: dotnet restore backend/Backend.csproj
 
+      - name: Build Project (Explicit)
+        run: dotnet build backend/Backend.csproj --configuration Release --no-restore
+
       - name: Generate Migration Script
         run: |
-          dotnet ef migrations script --output migration.sql --idempotent --project backend/Backend.csproj --startup-project backend/Backend.csproj --configuration Release
+          dotnet ef migrations script --output migration.sql --idempotent --project backend/Backend.csproj --startup-project backend/Backend.csproj --configuration Release --no-build
 
+      # UPDATED: Now uses the robust AZURE_CREDENTIALS secret
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_672615DF794E4698B57C046BD3BA39A5 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_416BC1BE543C4D0A836A0A9E00176076 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_ED90389CFF68412394A20161D96FE727 }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Allow GitHub Action IP
         id: firewall
         run: |
-          ip_address=$(curl -s http://checkip.dyndns.org/ | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")
+          ip_address=$(curl -s https://api.ipify.org)
+          echo "Runner IP: $ip_address"
           
           az sql server firewall-rule create \
             --resource-group rg-fieldopstracker \
@@ -82,11 +87,34 @@ jobs:
             --start-ip-address $ip_address \
             --end-ip-address $ip_address
 
-      - name: Run Migration Script
-        uses: azure/sql-action@v2.3
-        with:
-          connection-string: ${{ secrets.SQL_CONNECTION_STRING }}
-          path: migration.sql
+      - name: Download Tool, Wake DB, and Migrate
+        run: |
+          echo "Downloading latest sqlcmd..."
+          # Downloads the absolute latest version from GitHub
+          wget -q https://github.com/microsoft/go-sqlcmd/releases/latest/download/sqlcmd-linux-amd64.tar.bz2
+          
+          tar xjf sqlcmd-linux-amd64.tar.bz2
+          chmod +x sqlcmd
+          
+          # Debug: Verify version
+          ./sqlcmd --version
+
+          echo "Poking the database to wake it up..."
+          for i in {1..12}; do
+            # -G uses the logged-in Azure Service Principal
+            if ./sqlcmd -S fieldopstracker-sql.database.windows.net -d FieldOpsTracker -G -Q "SELECT 1" > /dev/null 2>&1; then
+              echo "Database is awake and responding!"
+              break
+            fi
+            echo "Database still napping... (Attempt $i). Waiting 10s..."
+            sleep 10
+          done
+
+          echo "Running Migration..."
+          ./sqlcmd -S fieldopstracker-sql.database.windows.net \
+                   -d FieldOpsTracker \
+                   -G \
+                   -i migration.sql
 
       - name: Remove Firewall Rule
         if: always() && steps.firewall.outcome == 'success'
@@ -96,6 +124,7 @@ jobs:
             --server fieldopstracker-sql \
             --name GitHubAction_$GITHUB_RUN_ID
 
+  # --- JOB 3: DEPLOY TO AZURE ---
   deploy:
     runs-on: windows-latest
     needs: [build, update-database]
@@ -105,17 +134,15 @@ jobs:
 
     steps:
       - name: Download artifact from build job
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v4
         with:
           name: .net-app
           path: ./.net-app
-       
+        
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_672615DF794E4698B57C046BD3BA39A5 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_416BC1BE543C4D0A836A0A9E00176076 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_ED90389CFF68412394A20161D96FE727 }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
